@@ -1,8 +1,9 @@
-[build]
-  command = "npm run build"
-  publish = "dist"
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    outDir: 'dist',
+  },
+})
