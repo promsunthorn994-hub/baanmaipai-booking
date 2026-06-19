@@ -489,10 +489,12 @@ body{font-family:'Baloo 2','Noto Sans Thai','Noto Sans JP','Noto Sans KR','Noto 
 .t-chip.ok{border-color:var(--turq);color:var(--turq-deep);background:var(--white)}
 .t-chip.ok:hover,.t-chip.ok.sel{background:var(--turq-deep);color:var(--white);border-color:var(--turq-deep);transform:scale(1.05)}
 .eq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:9px}
-.eq-card{background:var(--white);border:2.5px solid var(--fog);border-radius:16px;padding:12px;cursor:pointer;transition:all .2s;position:relative}
+.eq-card{background:var(--white);border:2.5px solid var(--fog);border-radius:16px;padding:0;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
 .eq-card:hover{border-color:var(--turq);transform:translateY(-3px);box-shadow:var(--sh)}
 .eq-card.in-cart{border-color:var(--lime-deep);background:#f7ffe8}
 .eq-card.full-card{opacity:.38;cursor:not-allowed;transform:none}
+.eq-photo{width:100%;aspect-ratio:1/1;object-fit:cover;display:block}
+.eq-body{padding:10px 12px 12px}
 .eq-icon{font-size:23px}.eq-name{font-size:11.5px;font-weight:700;color:var(--turq-deep);margin-top:3px}
 .eq-price{font-size:10px;color:var(--muted);margin-top:1px}.eq-avail{font-size:10px;font-weight:700;margin-top:3px}
 .eq-avail.ok{color:var(--lime-deep)}.eq-avail.full{color:var(--danger)}
@@ -783,10 +785,12 @@ function BookingPage({bookings,onBook,lang,t}){
               return(<div key={eq.id}>
                 <div className={"eq-card"+(ci?" in-cart":"")+(full?" full-card":"")} onClick={()=>!full&&toggleCart(eq)}>
                   {ci&&<div className="eq-badge">✓</div>}
-                  <div className="eq-icon">{eq.icon}</div>
-                  <div className="eq-name">{eq.names[lang]||eq.names.en}</div>
-                  <div className="eq-price">{eq.prices[lang]||eq.prices.en}</div>
-                  <div className={"eq-avail "+(full?"full":"ok")}>{full?t.full:`${t.avail} ${av}`}</div>
+                  <img src={eq.img} alt={eq.names[lang]||eq.names.en} className="eq-photo"/>
+                  <div className="eq-body">
+                    <div className="eq-name">{eq.names[lang]||eq.names.en}</div>
+                    <div className="eq-price">{eq.prices[lang]||eq.prices.en}</div>
+                    <div className={"eq-avail "+(full?"full":"ok")}>{full?t.full:`${t.avail} ${av}`}</div>
+                  </div>
                 </div>
                 {ci&&expandedEq===eq.id&&(<div className="eq-config">
                   <div className="cfg-row">
