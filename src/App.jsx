@@ -462,13 +462,14 @@ body{font-family:'Baloo 2','Noto Sans Thai','Noto Sans JP','Noto Sans KR','Noto 
 .nav-tab.active,.nav-tab:hover{background:var(--white);color:var(--turq-deep)}
 .lang-sel{background:rgba(255,255,255,.25);border:1.5px solid rgba(255,255,255,.4);color:var(--white);font-size:11px;padding:5px 7px;border-radius:14px;cursor:pointer;outline:none;font-family:inherit;font-weight:600}
 .lang-sel option{background:var(--turq-deep);color:var(--white)}
-.hero{background:linear-gradient(180deg,var(--navy3) 0%,var(--navy) 35%,var(--sky) 75%,var(--sky2) 100%);color:var(--white);padding:26px 16px 22px;text-align:center;position:relative;overflow:hidden}
+.hero{background:var(--sky2);padding:26px 16px 22px;text-align:center;position:relative;overflow:hidden}
 .hero::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle at 15% 20%,rgba(255,255,255,.18) 0,transparent 8%),radial-gradient(circle at 85% 15%,rgba(255,255,255,.15) 0,transparent 7%),radial-gradient(circle at 75% 75%,rgba(255,255,255,.12) 0,transparent 9%),radial-gradient(circle at 25% 80%,rgba(255,255,255,.14) 0,transparent 6%)}
 .hero-logo{width:72px;height:72px;border-radius:50%;object-fit:cover;border:4px solid var(--white);margin-bottom:10px;box-shadow:0 4px 18px rgba(0,0,0,.18);position:relative}
-.hero-title{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:22px;color:var(--white);position:relative;text-shadow:0 2px 6px rgba(0,0,0,.12)}
-.hero-sub{font-size:11px;color:rgba(255,255,255,.92);margin-top:4px;position:relative;font-weight:500}
+.hero-title{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:22px;color:var(--navy3);position:relative;text-shadow:0 2px 8px rgba(212,175,90,.5),0 1px 0 rgba(212,175,90,.3)}
+.hero-en{font-family:'Baloo 2',sans-serif;font-weight:600;font-size:12px;color:var(--navy2);letter-spacing:1px;margin-top:1px;position:relative}
+.hero-sub{font-size:11px;color:var(--navy2);margin-top:4px;position:relative;font-weight:600}
 .hero-badges{display:flex;gap:6px;justify-content:center;margin-top:11px;flex-wrap:wrap;position:relative}
-.hero-badge{background:rgba(255,255,255,.28);border:1.5px solid rgba(255,255,255,.4);color:var(--white);font-size:10px;font-weight:600;padding:4px 11px;border-radius:20px}
+.hero-badge{background:rgba(255,255,255,.55);border:1.5px solid rgba(15,31,61,.18);color:var(--navy3);font-size:10px;font-weight:700;padding:4px 11px;border-radius:20px}
 .section{max-width:800px;margin:0 auto;padding:16px 12px;background:var(--band-bg);position:relative}
 .section::before{content:'';position:fixed;inset:0;z-index:-1;background:var(--band-bg);background-image:radial-gradient(circle at 10% 10%,rgba(255,255,255,.5) 0,transparent 3%),radial-gradient(circle at 90% 25%,rgba(255,255,255,.4) 0,transparent 2.5%),radial-gradient(circle at 30% 85%,rgba(255,255,255,.45) 0,transparent 3%),radial-gradient(circle at 75% 70%,rgba(255,255,255,.4) 0,transparent 2.5%)}
 .sec-title{font-size:14.5px;font-weight:700;color:var(--turq-deep);border-left:4px solid var(--lime-deep);padding-left:9px;margin-bottom:12px;border-radius:2px}
@@ -700,6 +701,7 @@ function BookingPage({bookings,onBook,lang,t}){
       <img src={IMG_HERO_COVER} alt="บ้านไม้พาย" style={{width:"100%",maxHeight:160,objectFit:"cover",borderRadius:14,marginBottom:10,border:"2px solid rgba(255,255,255,.25)"}}/>
       <img src={LOGO} alt="logo" className="hero-logo"/>
       <div className="hero-title">บ้านไม้พาย</div>
+      <div className="hero-en">Baan Mai Pai</div>
       <div className="hero-sub">{t.hero_sub}</div>
       <div className="hero-badges">
         <span className="hero-badge">🛶 คายัค</span>
