@@ -450,9 +450,9 @@ const PAY_HOWTO = {
 const css=`
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Baloo+2:wght@500;600;700;800&family=Playfair+Display:wght@600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--navy:#1b2f4e;--navy2:#2a4a70;--navy3:#1e3a5f;--cream:#f0fbf8;--gold:#c9a84c;--gold2:#e8c96a;--white:#fff;--fog:#d4f3ec;--danger:#e0654f;--green:#3aa688;--text:#1e3a3a;--muted:#5a8a82;--sh:0 6px 22px rgba(64,196,180,.18);--sh2:0 3px 12px rgba(64,196,180,.12);--turq:#5fd4c4;--turq2:#7fe3d4;--turq-deep:#2bb5a0;--lime:#c4e85c;--lime2:#d9f27d;--lime-deep:#9fc940;--peach:#ffd6a5;--bg-grad:linear-gradient(160deg,#eafff9 0%,#e8f9d8 100%);--band-bg:#dcf5ee}
+:root{--navy:#0f1f3d;--navy2:#1c3a63;--navy3:#0a1830;--sky:#4f8fc9;--sky2:#7bb4e3;--cream:#f7faff;--gold:#d4af5a;--gold2:#f0cd80;--gold-deep:#b8923f;--white:#fff;--fog:#e3edf7;--danger:#e0654f;--green:#3aa688;--text:#1e2d3d;--muted:#6e7f8f;--sh:0 6px 22px rgba(15,31,61,.16);--sh2:0 3px 12px rgba(15,31,61,.1);--turq:#d4af5a;--turq2:#f0cd80;--turq-deep:#1c3a63;--lime:#c4e85c;--lime2:#d9f27d;--lime-deep:#9fc940;--peach:#ffd6a5;--bg-grad:linear-gradient(180deg,var(--navy3) 0%,var(--sky) 65%,var(--sky2) 100%);--band-bg:#eef5fc}
 body{font-family:'Baloo 2','Noto Sans Thai','Noto Sans JP','Noto Sans KR','Noto Sans SC',sans-serif;background:var(--band-bg);color:var(--text);min-height:100vh}
-.nav{background:linear-gradient(100deg,var(--turq-deep),var(--turq));display:flex;align-items:center;justify-content:space-between;padding:0 13px;height:56px;position:sticky;top:0;z-index:100;box-shadow:0 4px 16px rgba(43,181,160,.25);gap:7px}
+.nav{background:linear-gradient(100deg,var(--navy3),var(--navy));display:flex;align-items:center;justify-content:space-between;padding:0 13px;height:56px;position:sticky;top:0;z-index:100;box-shadow:0 4px 16px rgba(10,24,48,.3);gap:7px}
 .nav-brand{display:flex;align-items:center;gap:7px;flex-shrink:0}
 .nav-logo{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2.5px solid var(--white);box-shadow:0 2px 8px rgba(0,0,0,.15)}
 .nav-title{font-family:'Baloo 2',sans-serif;font-weight:700;font-size:16px;color:var(--white);text-shadow:0 1px 3px rgba(0,0,0,.15)}
@@ -462,7 +462,7 @@ body{font-family:'Baloo 2','Noto Sans Thai','Noto Sans JP','Noto Sans KR','Noto 
 .nav-tab.active,.nav-tab:hover{background:var(--white);color:var(--turq-deep)}
 .lang-sel{background:rgba(255,255,255,.25);border:1.5px solid rgba(255,255,255,.4);color:var(--white);font-size:11px;padding:5px 7px;border-radius:14px;cursor:pointer;outline:none;font-family:inherit;font-weight:600}
 .lang-sel option{background:var(--turq-deep);color:var(--white)}
-.hero{background:linear-gradient(155deg,var(--turq) 0%,var(--turq-deep) 55%,var(--lime-deep) 100%);color:var(--white);padding:26px 16px 22px;text-align:center;position:relative;overflow:hidden}
+.hero{background:linear-gradient(180deg,var(--navy3) 0%,var(--navy) 35%,var(--sky) 75%,var(--sky2) 100%);color:var(--white);padding:26px 16px 22px;text-align:center;position:relative;overflow:hidden}
 .hero::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle at 15% 20%,rgba(255,255,255,.18) 0,transparent 8%),radial-gradient(circle at 85% 15%,rgba(255,255,255,.15) 0,transparent 7%),radial-gradient(circle at 75% 75%,rgba(255,255,255,.12) 0,transparent 9%),radial-gradient(circle at 25% 80%,rgba(255,255,255,.14) 0,transparent 6%)}
 .hero-logo{width:72px;height:72px;border-radius:50%;object-fit:cover;border:4px solid var(--white);margin-bottom:10px;box-shadow:0 4px 18px rgba(0,0,0,.18);position:relative}
 .hero-title{font-family:'Baloo 2',sans-serif;font-weight:800;font-size:22px;color:var(--white);position:relative;text-shadow:0 2px 6px rgba(0,0,0,.12)}
@@ -472,7 +472,7 @@ body{font-family:'Baloo 2','Noto Sans Thai','Noto Sans JP','Noto Sans KR','Noto 
 .section{max-width:800px;margin:0 auto;padding:16px 12px;background:var(--band-bg);position:relative}
 .section::before{content:'';position:fixed;inset:0;z-index:-1;background:var(--band-bg);background-image:radial-gradient(circle at 10% 10%,rgba(255,255,255,.5) 0,transparent 3%),radial-gradient(circle at 90% 25%,rgba(255,255,255,.4) 0,transparent 2.5%),radial-gradient(circle at 30% 85%,rgba(255,255,255,.45) 0,transparent 3%),radial-gradient(circle at 75% 70%,rgba(255,255,255,.4) 0,transparent 2.5%)}
 .sec-title{font-size:14.5px;font-weight:700;color:var(--turq-deep);border-left:4px solid var(--lime-deep);padding-left:9px;margin-bottom:12px;border-radius:2px}
-.card{background:var(--white);border-radius:18px;box-shadow:0 8px 28px rgba(30,90,80,.16);padding:16px;margin-bottom:11px;border:none}
+.card{background:var(--white);border-radius:18px;box-shadow:0 8px 24px rgba(15,31,61,.14);padding:16px;margin-bottom:11px;border:2.5px solid var(--lime-deep)}
 .steps{display:flex;align-items:center;justify-content:center;margin-bottom:14px;flex-wrap:wrap;gap:1px}
 .step{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--muted)}
 .step.active{color:var(--turq-deep);font-weight:700}.step.done{color:var(--lime-deep)}
@@ -554,7 +554,7 @@ body{font-family:'Baloo 2','Noto Sans Thai','Noto Sans JP','Noto Sans KR','Noto 
 .success-screenshot{background:linear-gradient(100deg,var(--lime-deep),var(--lime));color:var(--white);border-radius:14px;padding:10px 15px;font-size:12px;font-weight:700;margin:10px 0}
 /* BTNS */
 .btn{font-family:inherit;font-size:12px;font-weight:700;border:none;border-radius:20px;padding:9px 18px;cursor:pointer;transition:all .18s}
-.btn-primary{background:linear-gradient(100deg,var(--turq-deep),var(--turq));color:var(--white);box-shadow:0 3px 10px rgba(43,181,160,.3)}
+.btn-primary{background:linear-gradient(100deg,var(--navy2),var(--gold));color:var(--white);box-shadow:0 3px 10px rgba(15,31,61,.3)}
 .btn-primary:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 5px 16px rgba(43,181,160,.4)}
 .btn-primary:disabled{background:#c8d6d2;cursor:not-allowed;transform:none;box-shadow:none}
 .btn-gold{background:linear-gradient(100deg,var(--lime-deep),var(--lime));color:var(--white);box-shadow:0 3px 10px rgba(159,201,64,.3)}
