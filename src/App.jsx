@@ -450,8 +450,8 @@ const PAY_HOWTO = {
 const css=`
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Baloo+2:wght@500;600;700;800&family=Playfair+Display:wght@600;700&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--navy:#1b2f4e;--navy2:#2a4a70;--navy3:#1e3a5f;--cream:#f0fbf8;--gold:#c9a84c;--gold2:#e8c96a;--white:#fff;--fog:#d4f3ec;--danger:#e0654f;--green:#3aa688;--text:#1e3a3a;--muted:#5a8a82;--sh:0 6px 22px rgba(64,196,180,.18);--sh2:0 3px 12px rgba(64,196,180,.12);--turq:#5fd4c4;--turq2:#7fe3d4;--turq-deep:#2bb5a0;--lime:#c4e85c;--lime2:#d9f27d;--lime-deep:#9fc940;--peach:#ffd6a5;--bg-grad:linear-gradient(160deg,#eafff9 0%,#e8f9d8 100%)}
-body{font-family:'Baloo 2','Noto Sans Thai','Noto Sans JP','Noto Sans KR','Noto Sans SC',sans-serif;background:var(--bg-grad);background-attachment:fixed;color:var(--text);min-height:100vh}
+:root{--navy:#1b2f4e;--navy2:#2a4a70;--navy3:#1e3a5f;--cream:#f0fbf8;--gold:#c9a84c;--gold2:#e8c96a;--white:#fff;--fog:#d4f3ec;--danger:#e0654f;--green:#3aa688;--text:#1e3a3a;--muted:#5a8a82;--sh:0 6px 22px rgba(64,196,180,.18);--sh2:0 3px 12px rgba(64,196,180,.12);--turq:#5fd4c4;--turq2:#7fe3d4;--turq-deep:#2bb5a0;--lime:#c4e85c;--lime2:#d9f27d;--lime-deep:#9fc940;--peach:#ffd6a5;--bg-grad:linear-gradient(160deg,#eafff9 0%,#e8f9d8 100%);--band-bg:#dcf5ee}
+body{font-family:'Baloo 2','Noto Sans Thai','Noto Sans JP','Noto Sans KR','Noto Sans SC',sans-serif;background:var(--band-bg);color:var(--text);min-height:100vh}
 .nav{background:linear-gradient(100deg,var(--turq-deep),var(--turq));display:flex;align-items:center;justify-content:space-between;padding:0 13px;height:56px;position:sticky;top:0;z-index:100;box-shadow:0 4px 16px rgba(43,181,160,.25);gap:7px}
 .nav-brand{display:flex;align-items:center;gap:7px;flex-shrink:0}
 .nav-logo{width:36px;height:36px;border-radius:50%;object-fit:cover;border:2.5px solid var(--white);box-shadow:0 2px 8px rgba(0,0,0,.15)}
@@ -469,9 +469,10 @@ body{font-family:'Baloo 2','Noto Sans Thai','Noto Sans JP','Noto Sans KR','Noto 
 .hero-sub{font-size:11px;color:rgba(255,255,255,.92);margin-top:4px;position:relative;font-weight:500}
 .hero-badges{display:flex;gap:6px;justify-content:center;margin-top:11px;flex-wrap:wrap;position:relative}
 .hero-badge{background:rgba(255,255,255,.28);border:1.5px solid rgba(255,255,255,.4);color:var(--white);font-size:10px;font-weight:600;padding:4px 11px;border-radius:20px}
-.section{max-width:800px;margin:0 auto;padding:16px 12px}
+.section{max-width:800px;margin:0 auto;padding:16px 12px;background:var(--band-bg);position:relative}
+.section::before{content:'';position:fixed;inset:0;z-index:-1;background:var(--band-bg);background-image:radial-gradient(circle at 10% 10%,rgba(255,255,255,.5) 0,transparent 3%),radial-gradient(circle at 90% 25%,rgba(255,255,255,.4) 0,transparent 2.5%),radial-gradient(circle at 30% 85%,rgba(255,255,255,.45) 0,transparent 3%),radial-gradient(circle at 75% 70%,rgba(255,255,255,.4) 0,transparent 2.5%)}
 .sec-title{font-size:14.5px;font-weight:700;color:var(--turq-deep);border-left:4px solid var(--lime-deep);padding-left:9px;margin-bottom:12px;border-radius:2px}
-.card{background:var(--white);border-radius:18px;box-shadow:var(--sh2);padding:16px;margin-bottom:11px;border:2px solid var(--fog)}
+.card{background:var(--white);border-radius:18px;box-shadow:0 8px 28px rgba(30,90,80,.16);padding:16px;margin-bottom:11px;border:none}
 .steps{display:flex;align-items:center;justify-content:center;margin-bottom:14px;flex-wrap:wrap;gap:1px}
 .step{display:flex;align-items:center;gap:3px;font-size:10px;color:var(--muted)}
 .step.active{color:var(--turq-deep);font-weight:700}.step.done{color:var(--lime-deep)}
@@ -580,7 +581,7 @@ body{font-family:'Baloo 2','Noto Sans Thai','Noto Sans JP','Noto Sans KR','Noto 
 .modal-bg{position:fixed;inset:0;background:rgba(20,60,55,.55);z-index:200;display:flex;align-items:center;justify-content:center;padding:12px}
 .modal{background:var(--white);border-radius:20px;padding:19px;max-width:430px;width:100%;max-height:88vh;overflow-y:auto;border:3px solid var(--turq)}
 .modal h3{font-family:'Baloo 2',sans-serif;font-weight:700;color:var(--turq-deep);margin-bottom:11px;font-size:16px}
-.login-wrap{min-height:calc(100vh - 56px);display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg-grad)}
+.login-wrap{min-height:calc(100vh - 56px);display:flex;align-items:center;justify-content:center;padding:16px;background:var(--band-bg)}
 .login-box{background:var(--white);border-radius:20px;padding:26px;box-shadow:var(--sh);text-align:center;width:100%;max-width:300px;border:3px solid var(--turq)}
 .login-box h2{font-family:'Baloo 2',sans-serif;font-weight:700;color:var(--turq-deep);margin-bottom:3px}
 .login-box p{font-size:11px;color:var(--muted);margin-bottom:13px}
