@@ -1,10 +1,41 @@
 import { useState, useEffect } from "react";
 import { LOGO, IMG_WATER_SPORTS, IMG_KAYAK1, IMG_KAYAK2, IMG_WATERCYCLE, IMG_SUP, IMG_TOUR, IMG_HERO_COVER, IMG_TNC_COVER, IMG_SUCCESS_COVER } from "./images.js";
 
-const SK = "bmp_v4";
 const ADMIN_PW = "bmp2026";
-async function load() { try { const r=await window.storage.get(SK); return r?JSON.parse(r.value):[]; } catch{return[];} }
-async function save(d) { try{await window.storage.set(SK,JSON.stringify(d));}catch{} }
+
+// ── SUPABASE CONFIG ────────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://ovgxuxcumiojxgpsstpq.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im92Z3h1eGN1bWlvanhncHNzdHBxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIwNTEyNzQsImV4cCI6MjA5NzYyNzI3NH0.XHce6M_DuAP5qZRgmznN7SyrTwfzg6MQ4CsdH-hVdIM";
+const SB_HEADERS = {
+  "apikey": SUPABASE_ANON_KEY,
+  "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+  "Content-Type": "application/json",
+};
+
+// Load all bookings from Supabase
+async function load() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/bookings?select=data&order=created_at.desc`, {
+      headers: SB_HEADERS,
+    });
+    if (!res.ok) return [];
+    const rows = await res.json();
+    return rows.map(r => r.data);
+  } catch {
+    return [];
+  }
+}
+
+// Update/insert a single booking - upsert by id (used for new bookings and cancellations)
+async function updateBooking(booking) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/bookings`, {
+      method: "POST",
+      headers: { ...SB_HEADERS, "Prefer": "resolution=merge-duplicates" },
+      body: JSON.stringify({ id: booking.id, data: booking }),
+    });
+  } catch {}
+}
 
 // ── THAI PUBLIC HOLIDAYS 2025-2026 ───────────────────────────────────────────
 const HOLIDAYS = new Set([
@@ -606,10 +637,13 @@ export default function App() {
   const t=T[lang];
 
   useEffect(()=>{load().then(b=>{setBookings(b);setLoading(false);});},[]);
-  const addBooking=async(b)=>{const u=[b,...bookings];setBookings(u);await save(u);};
+  const addBooking=async(b)=>{const u=[b,...bookings];setBookings(u);await updateBooking(b);};
   const cancelBooking=async(id)=>{
     const u=bookings.map(b=>b.id===id?{...b,status:"cancelled"}:b);
-    setBookings(u);await save(u);showToast(t.cancelled_toast);
+    setBookings(u);
+    const cancelled = u.find(b=>b.id===id);
+    if (cancelled) await updateBooking(cancelled);
+    showToast(t.cancelled_toast);
   };
   const showToast=(msg)=>{setToast(msg);setTimeout(()=>setToast(null),2800);};
 
