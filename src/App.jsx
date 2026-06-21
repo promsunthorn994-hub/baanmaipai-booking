@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 import { LOGO, IMG_WATER_SPORTS, IMG_KAYAK1, IMG_KAYAK2, IMG_WATERCYCLE, IMG_SUP, IMG_TOUR, IMG_HERO_COVER, IMG_TNC_COVER, IMG_SUCCESS_COVER } from "./images.js";
 
-const ADMIN_PW = "bmp2026";
+// ── ADMIN ACCOUNTS (5 คน, password แยกคนละตัว) ────────────────────────────────
+const ADMINS = [
+  { name: "Thapanat",  pw: "bmp2026" },
+  { name: "Mee",       pw: "bmp2026mee" },
+  { name: "Tua",       pw: "bmp2026tua" },
+  { name: "Koh",       pw: "bmp2026koh" },
+  { name: "Staff5",    pw: "bmp2026staff5" },
+];
 
 // ── SUPABASE CONFIG ────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://ovgxuxcumiojxgpsstpq.supabase.co";
@@ -35,6 +42,66 @@ async function updateBooking(booking) {
       body: JSON.stringify({ id: booking.id, data: booking }),
     });
   } catch {}
+}
+
+// ── BOATS (fleet management) ──────────────────────────────────────────────────
+async function loadBoats() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/boats?select=*&order=id.asc`, { headers: SB_HEADERS });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch { return []; }
+}
+
+async function upsertBoat(boat) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/boats`, {
+      method: "POST",
+      headers: { ...SB_HEADERS, "Prefer": "resolution=merge-duplicates" },
+      body: JSON.stringify({ ...boat, updated_at: new Date().toISOString() }),
+    });
+  } catch {}
+}
+
+// Generate default boat fleet (run once if boats table is empty)
+function generateDefaultFleet() {
+  const fleet = [];
+  for (let i = 1; i <= 4; i++) fleet.push({ id: `kayak1-${String(i).padStart(2,'0')}`, equipment_type: "kayak1", label: `คายัค 1 ที่นั่ง #${i}`, status: "active" });
+  for (let i = 1; i <= 12; i++) fleet.push({ id: `kayak2-${String(i).padStart(2,'0')}`, equipment_type: "kayak2", label: `คายัค 2+1 ที่นั่ง #${i}`, status: "active" });
+  for (let i = 1; i <= 4; i++) fleet.push({ id: `watercycle-${String(i).padStart(2,'0')}`, equipment_type: "watercycle", label: `จักรยานน้ำ #${i}`, status: "active" });
+  for (let i = 1; i <= 4; i++) fleet.push({ id: `sup-${String(i).padStart(2,'0')}`, equipment_type: "sup", label: `SUP #${i}`, status: "active" });
+  return fleet;
+}
+
+// Pick next available boat(s) for an equipment type via round-robin (least-recently-used first)
+function pickBoatsRoundRobin(boats, equipmentType, qty, excludeIds = []) {
+  const candidates = boats
+    .filter(b => b.equipment_type === equipmentType && b.status === "active" && !excludeIds.includes(b.id))
+    .sort((a, b) => {
+      const at = a.last_used_at ? new Date(a.last_used_at).getTime() : 0;
+      const bt = b.last_used_at ? new Date(b.last_used_at).getTime() : 0;
+      return at - bt; // least recently used first
+    });
+  return candidates.slice(0, qty).map(b => b.id);
+}
+
+// ── ACTIVITY LOG ───────────────────────────────────────────────────────────────
+async function logActivity(adminName, actionType, bookingId, detail) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/activity_log`, {
+      method: "POST",
+      headers: SB_HEADERS,
+      body: JSON.stringify({ admin_name: adminName, action_type: actionType, booking_id: bookingId || null, detail: detail || "" }),
+    });
+  } catch {}
+}
+
+async function loadActivityLog() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/activity_log?select=*&order=created_at.desc&limit=200`, { headers: SB_HEADERS });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch { return []; }
 }
 
 // ── THAI PUBLIC HOLIDAYS 2025-2026 ───────────────────────────────────────────
@@ -631,21 +698,99 @@ export default function App() {
   const [lang,setLang]=useState("th");
   const [tab,setTab]=useState("book");
   const [bookings,setBookings]=useState([]);
-  const [adminAuth,setAdminAuth]=useState(false);
+  const [boats,setBoats]=useState([]);
+  const [adminUser,setAdminUser]=useState(null); // {name} or null
   const [toast,setToast]=useState(null);
   const [loading,setLoading]=useState(true);
   const t=T[lang];
 
-  useEffect(()=>{load().then(b=>{setBookings(b);setLoading(false);});},[]);
-  const addBooking=async(b)=>{const u=[b,...bookings];setBookings(u);await updateBooking(b);};
-  const cancelBooking=async(id)=>{
-    const u=bookings.map(b=>b.id===id?{...b,status:"cancelled"}:b);
+  useEffect(()=>{
+    Promise.all([load(), loadBoats()]).then(async ([b, bt])=>{
+      setBookings(b);
+      // First-run: seed fleet if empty
+      if (bt.length === 0) {
+        const fleet = generateDefaultFleet();
+        await Promise.all(fleet.map(boat => upsertBoat(boat)));
+        setBoats(fleet);
+      } else {
+        setBoats(bt);
+      }
+      setLoading(false);
+    });
+  },[]);
+
+  const addBooking=async(b)=>{
+    // Auto-assign boats round-robin for water-sport items
+    const updatedBoats = [...boats];
+    const assignedItems = (b.items||[]).map(it=>{
+      if (b.category!=="water") return it;
+      const ids = pickBoatsRoundRobin(updatedBoats, it.activityId, it.qty);
+      ids.forEach(bid=>{
+        const idx = updatedBoats.findIndex(bo=>bo.id===bid);
+        if (idx>=0) updatedBoats[idx] = {...updatedBoats[idx], last_used_by:b.id, last_used_at:new Date().toISOString()};
+      });
+      return {...it, assignedBoatIds: ids};
+    });
+    const finalBooking = {...b, items: assignedItems, custStatus:"pending"};
+    const u=[finalBooking,...bookings];
+    setBookings(u);
+    await updateBooking(finalBooking);
+    // persist boat assignment updates
+    const touched = updatedBoats.filter(bo=>bo.last_used_by===b.id);
+    await Promise.all(touched.map(bo=>upsertBoat(bo)));
+    setBoats(updatedBoats);
+  };
+
+  const cancelBooking=async(id, reason)=>{
+    const u=bookings.map(b=>b.id===id?{...b,status:"cancelled",custStatus:"cust_cancelled",cancelReason:reason||""}:b);
     setBookings(u);
     const cancelled = u.find(b=>b.id===id);
     if (cancelled) await updateBooking(cancelled);
+    if (adminUser) await logActivity(adminUser.name, "cancel_booking", id, reason?`เหตุผล: ${reason}`:"");
     showToast(t.cancelled_toast);
   };
-  const showToast=(msg)=>{setToast(msg);setTimeout(()=>setToast(null),2800);};
+
+  const updateBookingFull=async(updated, actionDetail)=>{
+    const u=bookings.map(b=>b.id===updated.id?updated:b);
+    setBookings(u);
+    await updateBooking(updated);
+    if (adminUser) await logActivity(adminUser.name, "edit_booking", updated.id, actionDetail||"");
+  };
+
+  const markBoatDamaged=async(boatId, note)=>{
+    const boat = boats.find(b=>b.id===boatId);
+    if (!boat) return;
+    const updated = {...boat, status:"damaged", damage_note:note, updated_at:new Date().toISOString()};
+    await upsertBoat(updated);
+    setBoats(boats.map(b=>b.id===boatId?updated:b));
+    if (adminUser) await logActivity(adminUser.name, "mark_damaged", null, `${boat.label}: ${note}`);
+    showToast(`⚠️ แจ้งเตือน: ${boat.label} ถูกมาร์กว่าเสียหาย`);
+  };
+
+  const checkBoat=async(boatId)=>{
+    const boat = boats.find(b=>b.id===boatId);
+    if (!boat || !adminUser) return;
+    const updated = {...boat, last_checked_by:adminUser.name, last_checked_at:new Date().toISOString()};
+    await upsertBoat(updated);
+    setBoats(boats.map(b=>b.id===boatId?updated:b));
+    await logActivity(adminUser.name, "check_boat", null, `ตรวจสอบ ${boat.label}`);
+  };
+
+  const restoreBoat=async(boatId)=>{
+    const boat = boats.find(b=>b.id===boatId);
+    if (!boat || !adminUser) return;
+    const updated = {...boat, status:"active", damage_note:null};
+    await upsertBoat(updated);
+    setBoats(boats.map(b=>b.id===boatId?updated:b));
+    await logActivity(adminUser.name, "restore_boat", null, `คืนสถานะ ${boat.label} เป็นใช้งานได้`);
+  };
+
+  const showToast=(msg)=>{setToast(msg);setTimeout(()=>setToast(null),3500);};
+
+  const handleAdminLogin=async(name)=>{
+    setAdminUser({name});
+    await logActivity(name, "login", null, "");
+  };
 
   if(loading)return <div style={{textAlign:"center",padding:"60px",fontFamily:"inherit"}}>{t.loading}</div>;
   return(<>
@@ -664,7 +809,13 @@ export default function App() {
       </div>
     </div>
     {tab==="book"&&<BookingPage bookings={bookings} onBook={addBooking} lang={lang} t={t}/>}
-    {tab==="admin"&&(adminAuth?<AdminPage bookings={bookings} onCancel={cancelBooking} lang={lang} t={t}/>:<AdminLogin onAuth={()=>setAdminAuth(true)} t={t}/>)}
+    {tab==="admin"&&(adminUser
+      ?<AdminPage bookings={bookings} boats={boats} adminUser={adminUser}
+          onCancel={cancelBooking} onUpdateBooking={updateBookingFull}
+          onMarkDamaged={markBoatDamaged} onCheckBoat={checkBoat} onRestoreBoat={restoreBoat}
+          lang={lang} t={t}/>
+      :<AdminLogin onAuth={handleAdminLogin} t={t}/>
+    )}
     {toast&&<div className="toast">{toast}</div>}
   </>);
 }
@@ -1045,7 +1196,11 @@ function BookingPage({bookings,onBook,lang,t}){
 // ── ADMIN LOGIN ───────────────────────────────────────────────────────────────
 function AdminLogin({onAuth,t}){
   const[pw,setPw]=useState("");const[err,setErr]=useState(false);
-  const try_=()=>{if(pw===ADMIN_PW)onAuth();else{setErr(true);setTimeout(()=>setErr(false),2000);}};
+  const try_=()=>{
+    const found = ADMINS.find(a=>a.pw===pw);
+    if(found) onAuth(found.name);
+    else{setErr(true);setTimeout(()=>setErr(false),2000);}
+  };
   return(<div className="login-wrap"><style>{css}</style>
     <div className="login-box">
       <img src={LOGO} alt="logo" style={{width:55,height:55,borderRadius:"50%",border:"2px solid var(--gold)",objectFit:"cover",marginBottom:9}}/>
@@ -1056,78 +1211,342 @@ function AdminLogin({onAuth,t}){
         <input type="password" className="form-inp" value={pw} placeholder="••••••••" onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&try_()}/>
       </div>
       <button className="btn btn-primary btn-full" onClick={try_}>{t.login}</button>
+      <div style={{fontSize:10,color:"var(--muted)",marginTop:10}}>ระบบจะบันทึกชื่อผู้เข้าสู่ระบบและกิจกรรมทั้งหมด</div>
     </div>
   </div>);
 }
 
+// ── CUSTOMER STATUS CONFIG ──────────────────────────────────────────────────────
+const CUST_STATUSES = [
+  { id:"pending",        label:"รอเข้ารับบริการ", color:"#6e7f8f", bg:"#eef1f3" },
+  { id:"arrived",        label:"มาถึงแล้ว",       color:"#1c3a63", bg:"#e3edf7" },
+  { id:"in_service",     label:"กำลังใช้บริการ",   color:"#2bb5a0", bg:"#e3fbf6" },
+  { id:"done",           label:"สิ้นสุดการใช้บริการ", color:"#3aa688", bg:"#e3f9ee" },
+  { id:"cust_cancelled", label:"ลูกค้าขอยกเลิก",   color:"#e0654f", bg:"#fdeae6" },
+  { id:"no_show",        label:"ไม่มาตามนัด (No-show)", color:"#b8923f", bg:"#faf3e3" },
+];
+function custStatusInfo(id){ return CUST_STATUSES.find(s=>s.id===id) || CUST_STATUSES[0]; }
+
 // ── ADMIN PAGE ────────────────────────────────────────────────────────────────
-function AdminPage({bookings,onCancel,lang,t}){
+function AdminPage({bookings,boats,adminUser,onCancel,onUpdateBooking,onMarkDamaged,onCheckBoat,onRestoreBoat,lang,t}){
+  const[subTab,setSubTab]=useState("bookings"); // bookings | fleet | log
   const[fDate,setFDate]=useState("");const[fStatus,setFStatus]=useState("");const[detail,setDetail]=useState(null);
+  const[editMode,setEditMode]=useState(false);
+  const[editForm,setEditForm]=useState(null);
+  const[remarkDraft,setRemarkDraft]=useState("");
+  const[cancelReasonDraft,setCancelReasonDraft]=useState("");
+  const[showCancelBox,setShowCancelBox]=useState(false);
+  const[damageBoat,setDamageBoat]=useState(null);
+  const[damageNote,setDamageNote]=useState("");
+  const[logEntries,setLogEntries]=useState([]);
+  const[logLoading,setLogLoading]=useState(false);
+
   const active=bookings.filter(b=>b.status!=="cancelled");
   const todayB=active.filter(b=>b.date===todayStr());
   const totalRev=active.reduce((s,b)=>s+(b.total||0),0);
   const filtered=bookings.filter(b=>{if(fDate&&b.date!==fDate)return false;if(fStatus&&b.status!==fStatus)return false;return true;});
+
+  useEffect(()=>{
+    if(subTab==="log"){
+      setLogLoading(true);
+      loadActivityLog().then(e=>{setLogEntries(e);setLogLoading(false);});
+    }
+  },[subTab]);
+
+  function openDetail(b){
+    setDetail(b);
+    setEditMode(false);
+    setRemarkDraft(b.adminRemark||"");
+    setShowCancelBox(false);
+    setCancelReasonDraft("");
+  }
+
+  function startEdit(){
+    setEditForm({date:detail.date, time:detail.time, items: detail.items?.map(it=>({...it}))||[]});
+    setEditMode(true);
+  }
+
+  // Check if edited qty exceeds available capacity for that equipment/date/time (excluding this booking itself)
+  function capacityWarning(activityId, date, time, qty, excludeBookingId){
+    const eq=[...EQUIPMENT,TOUR].find(e=>e.id===activityId);
+    if(!eq) return null;
+    const others = bookings.filter(b=>b.id!==excludeBookingId && b.status!=="cancelled" && b.date===date);
+    let used=0;
+    others.forEach(b=>{
+      b.items?.forEach(it=>{
+        if(it.activityId!==activityId) return;
+        const bS=toMins(b.time), bE=bS+it.durMins+GAP;
+        const nS=toMins(time), nE=nS+(eq.minDur||60)+GAP;
+        if(nS<bE && nE>bS) used+=it.qty;
+      });
+    });
+    const avail = eq.maxUnits - used;
+    if (qty > avail) return `⚠️ เกิน capacity! เหลือว่างจริง ${avail} ${eq.unit||''} แต่ตั้งไว้ ${qty}`;
+    return null;
+  }
+
+  async function saveEdit(){
+    const updated = {...detail, date:editForm.date, time:editForm.time, items:editForm.items,
+      total: editForm.items.reduce((s,it)=>s+(it.price||0),0)};
+    await onUpdateBooking(updated, `แก้ไขวันที่/เวลา/รายการ โดย ${adminUser.name}`);
+    setDetail(updated);
+    setEditMode(false);
+  }
+
+  async function saveRemark(){
+    const updated = {...detail, adminRemark: remarkDraft};
+    await onUpdateBooking(updated, `บันทึก remark: "${remarkDraft}"`);
+    setDetail(updated);
+  }
+
+  async function setCustStatus(newStatus){
+    const updated = {...detail, custStatus:newStatus};
+    await onUpdateBooking(updated, `เปลี่ยนสถานะลูกค้าเป็น: ${custStatusInfo(newStatus).label}`);
+    setDetail(updated);
+  }
+
+  async function doCancelWithReason(){
+    await onCancel(detail.id, cancelReasonDraft);
+    setDetail({...detail, status:"cancelled", custStatus:"cust_cancelled", cancelReason:cancelReasonDraft});
+    setShowCancelBox(false);
+  }
+
+  async function restoreFromCancel(){
+    const updated = {...detail, status:"confirmed", custStatus:"pending", cancelReason:""};
+    await onUpdateBooking(updated, `เปลี่ยนกลับเป็นยืนยัน (ยกเลิกการยกเลิก) โดย ${adminUser.name}`);
+    setDetail(updated);
+  }
+
+  async function submitDamage(){
+    if(!damageBoat||!damageNote.trim()) return;
+    await onMarkDamaged(damageBoat.id, damageNote);
+    setDamageBoat(null); setDamageNote("");
+  }
+
+  const boatsByType = {};
+  EQUIPMENT.forEach(eq=>{ boatsByType[eq.id] = boats.filter(b=>b.equipment_type===eq.id); });
+
   return(<div className="section"><style>{css}</style>
-    <div className="sec-title" style={{marginBottom:11}}>{t.admin_title}</div>
-    <div className="admin-stats">
-      <div className="stat-card"><div className="stat-num">{active.length}</div><div className="stat-label">{t.total_b}</div></div>
-      <div className="stat-card"><div className="stat-num">{todayB.length}</div><div className="stat-label">{t.today_b}</div></div>
-      <div className="stat-card"><div className="stat-num">{totalRev.toLocaleString()}</div><div className="stat-label">{t.revenue}</div></div>
-      <div className="stat-card"><div className="stat-num">{bookings.filter(b=>b.status==="cancelled").length}</div><div className="stat-label">{t.cancelled_n}</div></div>
-    </div>
-    <div className="sec-title">{t.all_b}</div>
-    <div className="filter-bar">
-      <input type="date" className="form-inp" style={{width:145}} value={fDate} onChange={e=>setFDate(e.target.value)}/>
-      <select className="form-sel" style={{width:125}} value={fStatus} onChange={e=>setFStatus(e.target.value)}>
-        <option value="">{t.all_status}</option>
-        <option value="confirmed">{t.confirmed_s}</option>
-        <option value="cancelled">{t.cancelled_s}</option>
-      </select>
-      {(fDate||fStatus)&&<button className="btn btn-outline btn-sm" onClick={()=>{setFDate("");setFStatus("");}}>{t.clear}</button>}
-    </div>
-    {filtered.length===0?<div className="no-data">{t.no_b}</div>:(
-      <div style={{overflowX:"auto"}}>
-        <table className="b-table">
-          <thead><tr><th>{t.b_id}</th><th>Cat.</th><th>{t.b_date}</th><th>{t.booker}</th><th>{t.items}</th><th>฿</th><th>Slip</th><th>{t.status}</th><th></th></tr></thead>
-          <tbody>
-            {filtered.map(b=>(
-              <tr key={b.id}>
-                <td><code style={{fontSize:10}}>{b.id}</code></td>
-                <td>{b.category==="tour"?"⛵":"🏄"}</td>
-                <td>{formatDate(b.date,lang)}<br/><span style={{color:"var(--muted)",fontSize:10}}>{b.time}</span></td>
-                <td>{b.name}<br/><span style={{color:"var(--muted)",fontSize:10}}>{b.phone}</span>{b.email&&<><br/><span style={{color:"var(--muted)",fontSize:10}}>{b.email}</span></>}</td>
-                <td>{b.items?.length} {t.items}</td>
-                <td style={{fontWeight:600,color:"var(--navy)"}}>{b.total?.toLocaleString()}</td>
-                <td style={{fontSize:12}}>{b.hasSlip?"✅":"—"}</td>
-                <td><span className={"s-badge s-"+b.status}>{b.status==="confirmed"?t.conf_badge:t.canc_badge}</span></td>
-                <td style={{display:"flex",gap:3}}>
-                  <button className="btn btn-sm btn-outline" onClick={()=>setDetail(b)}>{t.view}</button>
-                  {b.status==="confirmed"&&<button className="btn btn-sm btn-danger" onClick={()=>{if(confirm(t.cancel_q))onCancel(b.id);}}>{t.cancel_b}</button>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:11,flexWrap:"wrap",gap:8}}>
+      <div className="sec-title" style={{marginBottom:0}}>{t.admin_title}</div>
+      <div style={{fontSize:11,color:"var(--muted)",background:"var(--white)",padding:"5px 12px",borderRadius:20,border:"1.5px solid var(--lime-deep)"}}>
+        👤 <strong style={{color:"var(--navy2)"}}>{adminUser.name}</strong>
       </div>
-    )}
+    </div>
+
+    <div className="filter-bar" style={{marginBottom:14}}>
+      <button className={"btn btn-sm "+(subTab==="bookings"?"btn-primary":"btn-outline")} onClick={()=>setSubTab("bookings")}>📋 การจอง</button>
+      <button className={"btn btn-sm "+(subTab==="fleet"?"btn-primary":"btn-outline")} onClick={()=>setSubTab("fleet")}>🛶 จัดการเรือ</button>
+      <button className={"btn btn-sm "+(subTab==="log"?"btn-primary":"btn-outline")} onClick={()=>setSubTab("log")}>📝 Activity Log</button>
+    </div>
+
+    {/* ── TAB: BOOKINGS ── */}
+    {subTab==="bookings"&&(<>
+      <div className="admin-stats">
+        <div className="stat-card"><div className="stat-num">{active.length}</div><div className="stat-label">{t.total_b}</div></div>
+        <div className="stat-card"><div className="stat-num">{todayB.length}</div><div className="stat-label">{t.today_b}</div></div>
+        <div className="stat-card"><div className="stat-num">{totalRev.toLocaleString()}</div><div className="stat-label">{t.revenue}</div></div>
+        <div className="stat-card"><div className="stat-num">{bookings.filter(b=>b.status==="cancelled").length}</div><div className="stat-label">{t.cancelled_n}</div></div>
+      </div>
+      <div className="sec-title">{t.all_b}</div>
+      <div className="filter-bar">
+        <input type="date" className="form-inp" style={{width:145}} value={fDate} onChange={e=>setFDate(e.target.value)}/>
+        <select className="form-sel" style={{width:125}} value={fStatus} onChange={e=>setFStatus(e.target.value)}>
+          <option value="">{t.all_status}</option>
+          <option value="confirmed">{t.confirmed_s}</option>
+          <option value="cancelled">{t.cancelled_s}</option>
+        </select>
+        {(fDate||fStatus)&&<button className="btn btn-outline btn-sm" onClick={()=>{setFDate("");setFStatus("");}}>{t.clear}</button>}
+      </div>
+      {filtered.length===0?<div className="no-data">{t.no_b}</div>:(
+        <div style={{overflowX:"auto"}}>
+          <table className="b-table">
+            <thead><tr><th>{t.b_id}</th><th>Cat.</th><th>{t.b_date}</th><th>{t.booker}</th><th>สถานะลูกค้า</th><th>฿</th><th>{t.status}</th><th></th></tr></thead>
+            <tbody>
+              {filtered.map(b=>{
+                const cs = custStatusInfo(b.custStatus||"pending");
+                return(
+                <tr key={b.id}>
+                  <td><code style={{fontSize:10}}>{b.id}</code>{b.adminRemark&&<div title={b.adminRemark} style={{fontSize:10,color:"var(--gold-deep)"}}>📝</div>}</td>
+                  <td>{b.category==="tour"?"⛵":"🏄"}</td>
+                  <td>{formatDate(b.date,lang)}<br/><span style={{color:"var(--muted)",fontSize:10}}>{b.time}</span></td>
+                  <td>{b.name}<br/><span style={{color:"var(--muted)",fontSize:10}}>{b.phone}</span></td>
+                  <td><span className="s-badge" style={{background:cs.bg,color:cs.color}}>{cs.label}</span></td>
+                  <td style={{fontWeight:600,color:"var(--navy)"}}>{b.total?.toLocaleString()}</td>
+                  <td><span className={"s-badge s-"+b.status}>{b.status==="confirmed"?t.conf_badge:t.canc_badge}</span></td>
+                  <td><button className="btn btn-sm btn-outline" onClick={()=>openDetail(b)}>{t.view}</button></td>
+                </tr>
+              );})}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>)}
+
+    {/* ── TAB: FLEET ── */}
+    {subTab==="fleet"&&(<>
+      <div className="sec-title">🛶 จัดการเรือ/อุปกรณ์รายลำ</div>
+      <div style={{fontSize:11,color:"var(--muted)",marginBottom:12}}>ระบบเลือกเรือหมุนเวียนอัตโนมัติแบบ round-robin (ลำที่ไม่ได้ใช้นานสุดจะถูกเลือกก่อน)</div>
+      {EQUIPMENT.map(eq=>(
+        <div key={eq.id} style={{marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:700,color:"var(--navy2)",marginBottom:7}}>{eq.icon} {eq.names[lang]||eq.names.en}</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:8}}>
+            {(boatsByType[eq.id]||[]).map(boat=>(
+              <div key={boat.id} className="card" style={{margin:0,padding:10,borderColor:boat.status==="damaged"?"var(--danger)":"var(--lime-deep)"}}>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--navy2)"}}>{boat.label}</div>
+                <div style={{fontSize:10,color:"var(--muted)",marginTop:2}}>
+                  {boat.status==="damaged"?<span style={{color:"var(--danger)",fontWeight:700}}>⚠️ เสียหาย</span>:<span style={{color:"var(--lime-deep)",fontWeight:700}}>✓ ใช้งานได้</span>}
+                </div>
+                {boat.last_used_at&&<div style={{fontSize:9,color:"var(--muted)",marginTop:3}}>ใช้ล่าสุด: {new Date(boat.last_used_at).toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</div>}
+                {boat.last_checked_at&&<div style={{fontSize:9,color:"var(--muted)"}}>ตรวจล่าสุด: {boat.last_checked_by} ({new Date(boat.last_checked_at).toLocaleDateString('th-TH',{day:'numeric',month:'short'})})</div>}
+                {boat.status==="damaged"&&boat.damage_note&&<div style={{fontSize:10,color:"var(--danger)",marginTop:4,background:"#fdeae6",padding:"4px 6px",borderRadius:6}}>{boat.damage_note}</div>}
+                <div style={{display:"flex",gap:4,marginTop:7,flexWrap:"wrap"}}>
+                  <button className="btn btn-sm btn-outline" style={{fontSize:10,padding:"3px 8px"}} onClick={()=>onCheckBoat(boat.id)}>✓ ตรวจแล้ว</button>
+                  {boat.status==="damaged"
+                    ?<button className="btn btn-sm" style={{fontSize:10,padding:"3px 8px",background:"var(--lime-deep)",color:"#fff"}} onClick={()=>onRestoreBoat(boat.id)}>คืนสถานะ</button>
+                    :<button className="btn btn-sm btn-danger" style={{fontSize:10,padding:"3px 8px"}} onClick={()=>setDamageBoat(boat)}>แจ้งเสีย</button>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </>)}
+
+    {/* ── TAB: ACTIVITY LOG ── */}
+    {subTab==="log"&&(<>
+      <div className="sec-title">📝 Activity Log (ล่าสุด 200 รายการ)</div>
+      {logLoading?<div className="no-data">{t.loading}</div>:logEntries.length===0?<div className="no-data">ยังไม่มีกิจกรรม</div>:(
+        <div style={{overflowX:"auto"}}>
+          <table className="b-table">
+            <thead><tr><th>เวลา</th><th>แอดมิน</th><th>การกระทำ</th><th>Booking</th><th>รายละเอียด</th></tr></thead>
+            <tbody>
+              {logEntries.map(e=>(
+                <tr key={e.id}>
+                  <td style={{fontSize:10,whiteSpace:"nowrap"}}>{new Date(e.created_at).toLocaleString('th-TH',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</td>
+                  <td style={{fontWeight:600,color:"var(--navy2)"}}>{e.admin_name}</td>
+                  <td><span className="s-badge" style={{background:"var(--fog)",color:"var(--navy2)"}}>{e.action_type}</span></td>
+                  <td><code style={{fontSize:10}}>{e.booking_id||"—"}</code></td>
+                  <td style={{fontSize:11}}>{e.detail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>)}
+
+    {/* ── DAMAGE REPORT MODAL ── */}
+    {damageBoat&&(<div className="modal-bg" onClick={()=>setDamageBoat(null)}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h3>⚠️ แจ้งเรือเสียหาย: {damageBoat.label}</h3>
+        <div className="form-group" style={{marginBottom:14}}>
+          <label className="form-label">อาการเสีย / รายละเอียด</label>
+          <input className="form-inp" placeholder="เช่น รั่ว, พายหัก, สีลอก..." value={damageNote} onChange={e=>setDamageNote(e.target.value)}/>
+        </div>
+        <div style={{fontSize:11,color:"var(--muted)",marginBottom:12}}>เรือลำนี้จะถูกลบออกจาก pool การจองอัตโนมัติชั่วคราว และแอดมินทุกคนจะเห็นการแจ้งเตือนนี้ในหน้าจัดการเรือ</div>
+        <div className="flex-end">
+          <button className="btn btn-outline" onClick={()=>setDamageBoat(null)}>{t.close}</button>
+          <button className="btn btn-danger" style={{padding:"9px 18px",fontSize:12}} disabled={!damageNote.trim()} onClick={submitDamage}>ยืนยันแจ้งเสีย</button>
+        </div>
+      </div>
+    </div>)}
+
+    {/* ── BOOKING DETAIL / EDIT MODAL ── */}
     {detail&&(<div className="modal-bg" onClick={()=>setDetail(null)}>
       <div className="modal" onClick={e=>e.stopPropagation()}>
         <h3>{t.b_detail}</h3>
-        <div className="cart-box">
-          {[[t.b_id,detail.id],[t.b_date,`${formatDate(detail.date,lang)} · ${detail.time}`],[t.booker,detail.name],[t.tel,detail.phone],detail.email&&["Email",detail.email],detail.note&&[t.remarks,detail.note],["Payment",detail.payMethod],["Slip",detail.hasSlip?"✅ Uploaded":"—"],[t.status,detail.status==="confirmed"?t.conf_badge:t.canc_badge]].filter(Boolean).map(([k,v])=>(
-            <div key={k} className="sum-row"><span style={{color:"var(--muted)"}}>{k}</span><span style={{fontWeight:500,fontSize:11}}>{v}</span></div>
-          ))}
-          <div style={{borderTop:"1px solid rgba(27,47,78,.1)",paddingTop:6,marginTop:6}}>
-            {detail.items?.map((it,i)=>(
-              <div key={i} className="sum-row"><span>{it.activityIcon} {it.activityName} ×{it.qty} · {durLabel(it.durMins,lang)}</span><span style={{fontWeight:600}}>{it.price?.toLocaleString()} ฿</span></div>
+
+        {!editMode?(<>
+          <div className="cart-box">
+            {[[t.b_id,detail.id],[t.b_date,`${formatDate(detail.date,lang)} · ${detail.time}`],[t.booker,detail.name],[t.tel,detail.phone],detail.email&&["Email",detail.email],detail.note&&["หมายเหตุลูกค้า",detail.note],["Payment",detail.payMethod],["Slip",detail.hasSlip?"✅ Uploaded":"—"],[t.status,detail.status==="confirmed"?t.conf_badge:t.canc_badge],detail.cancelReason&&["เหตุผลยกเลิก",detail.cancelReason]].filter(Boolean).map(([k,v])=>(
+              <div key={k} className="sum-row"><span style={{color:"var(--muted)"}}>{k}</span><span style={{fontWeight:500,fontSize:11}}>{v}</span></div>
             ))}
+            <div style={{borderTop:"1px solid rgba(27,47,78,.1)",paddingTop:6,marginTop:6}}>
+              {detail.items?.map((it,i)=>(
+                <div key={i} className="sum-row">
+                  <span>{it.activityIcon} {it.activityName} ×{it.qty} · {durLabel(it.durMins,lang)}{it.assignedBoatIds&&it.assignedBoatIds.length>0&&<div style={{fontSize:9,color:"var(--gold-deep)"}}>🛶 {it.assignedBoatIds.join(", ")}</div>}</span>
+                  <span style={{fontWeight:600}}>{it.price?.toLocaleString()} ฿</span>
+                </div>
+              ))}
+            </div>
+            <div className="cart-total"><span>{t.total}</span><span>{detail.total?.toLocaleString()} ฿</span></div>
           </div>
-          <div className="cart-total"><span>{t.total}</span><span>{detail.total?.toLocaleString()} ฿</span></div>
-        </div>
-        <div className="flex-end">
-          {detail.status==="confirmed"&&<button className="btn btn-danger" onClick={()=>{onCancel(detail.id);setDetail(null);}}>{t.cancel_b}</button>}
-          <button className="btn btn-outline" onClick={()=>setDetail(null)}>{t.close}</button>
-        </div>
+
+          {/* Customer status selector */}
+          <div style={{marginTop:14}}>
+            <div className="form-label" style={{marginBottom:6}}>สถานะลูกค้า</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {CUST_STATUSES.map(cs=>(
+                <button key={cs.id}
+                  className="btn btn-sm"
+                  style={{background:(detail.custStatus||"pending")===cs.id?cs.color:cs.bg,color:(detail.custStatus||"pending")===cs.id?"#fff":cs.color,fontWeight:700,border:"none"}}
+                  onClick={()=>cs.id==="cust_cancelled"?setShowCancelBox(true):setCustStatus(cs.id)}>
+                  {cs.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {showCancelBox&&(
+            <div className="addon-box" style={{marginTop:10}}>
+              <div className="addon-title">เหตุผลที่ลูกค้าขอยกเลิก</div>
+              <input className="form-inp" style={{marginTop:6}} placeholder="เช่น ลูกค้าติดธุระกะทันหัน, สภาพอากาศไม่ดี..." value={cancelReasonDraft} onChange={e=>setCancelReasonDraft(e.target.value)}/>
+              <div className="flex-end" style={{marginTop:8}}>
+                <button className="btn btn-outline btn-sm" onClick={()=>setShowCancelBox(false)}>ยกเลิก</button>
+                <button className="btn btn-danger" onClick={doCancelWithReason}>ยืนยันยกเลิกการจอง</button>
+              </div>
+            </div>
+          )}
+
+          {/* Admin remark */}
+          <div style={{marginTop:14}}>
+            <div className="form-label" style={{marginBottom:6}}>📝 Remark (บันทึกของแอดมิน — เช่น ลูกค้าโทรมาขออะไร)</div>
+            <textarea className="form-inp" rows={3} style={{resize:"vertical",fontFamily:"inherit"}} value={remarkDraft} onChange={e=>setRemarkDraft(e.target.value)} placeholder="เช่น ลูกค้าโทรมาขอเลื่อนเป็น 14:00 แทน..."/>
+            <button className="btn btn-outline btn-sm" style={{marginTop:6}} onClick={saveRemark}>💾 บันทึก Remark</button>
+          </div>
+
+          <div className="flex-end" style={{marginTop:14}}>
+            {detail.status==="cancelled"&&<button className="btn" style={{background:"var(--lime-deep)",color:"#fff"}} onClick={restoreFromCancel}>↩️ เปลี่ยนกลับเป็นยืนยัน</button>}
+            {detail.status==="confirmed"&&<button className="btn btn-outline" onClick={startEdit}>✏️ แก้ไขวันที่/เวลา/รายการ</button>}
+            <button className="btn btn-outline" onClick={()=>setDetail(null)}>{t.close}</button>
+          </div>
+        </>):(<>
+          {/* EDIT MODE */}
+          <div className="form-group" style={{marginBottom:10}}>
+            <label className="form-label">วันที่</label>
+            <input type="date" className="form-inp" value={editForm.date} onChange={e=>setEditForm({...editForm,date:e.target.value})}/>
+          </div>
+          <div className="form-group" style={{marginBottom:14}}>
+            <label className="form-label">รอบเวลา</label>
+            <select className="form-sel" value={editForm.time} onChange={e=>setEditForm({...editForm,time:e.target.value})}>
+              {TIME_SLOTS.map(ts=><option key={ts} value={ts}>{ts}</option>)}
+            </select>
+          </div>
+          {editForm.items.map((it,i)=>{
+            const warn = capacityWarning(it.activityId, editForm.date, editForm.time, it.qty, detail.id);
+            return(
+              <div key={i} className="eq-config" style={{marginBottom:8}}>
+                <div style={{fontSize:12,fontWeight:700,color:"var(--navy2)",marginBottom:6}}>{it.activityIcon} {it.activityName}</div>
+                <div className="cfg-row">
+                  <div className="cfg-col">
+                    <div className="cfg-label">จำนวน</div>
+                    <input type="number" min="1" className="form-inp" value={it.qty}
+                      onChange={e=>{
+                        const items=[...editForm.items]; items[i]={...items[i],qty:+e.target.value||1};
+                        setEditForm({...editForm,items});
+                      }}/>
+                  </div>
+                </div>
+                {warn&&<div style={{fontSize:11,color:"var(--danger)",fontWeight:700,marginTop:4}}>{warn}</div>}
+              </div>
+            );
+          })}
+          <div className="flex-end">
+            <button className="btn btn-outline" onClick={()=>setEditMode(false)}>ยกเลิก</button>
+            <button className="btn btn-primary" onClick={saveEdit}>💾 บันทึกการแก้ไข</button>
+          </div>
+        </>)}
       </div>
     </div>)}
   </div>);
